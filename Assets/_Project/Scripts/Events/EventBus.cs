@@ -21,6 +21,7 @@ public static class EventBus
         if (Events.ContainsKey(type))
         {
             Events[type]?.Invoke(eventData);
+            ;
         }
     }
 }
