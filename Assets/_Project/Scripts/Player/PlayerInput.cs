@@ -1,30 +1,34 @@
 ﻿using UnityEngine;
-using UnityEngine.InputSystem; // Добавляем пространство имен новой системы
+using UnityEngine.InputSystem;
 
 public class PlayerInput : MonoBehaviour
 {
+    private Camera _mainCamera;
+
+    void Start()
+    {
+        _mainCamera = Camera.main;
+    }
+
     void Update()
     {
-        // В новой системе мы проверяем нажатия напрямую через клавиатуру
-        var keyboard = Keyboard.current;
-        if (keyboard == null) return;
-
-        Vector3 direction = Vector3.zero;
-
-        // Проверяем клавиши
-        if (keyboard.wKey.wasPressedThisFrame || keyboard.upArrowKey.wasPressedThisFrame)
-            direction = new Vector3(0, 0, 1);
-        else if (keyboard.sKey.wasPressedThisFrame || keyboard.downArrowKey.wasPressedThisFrame)
-            direction = new Vector3(0, 0, -1);
-        else if (keyboard.aKey.wasPressedThisFrame || keyboard.leftArrowKey.wasPressedThisFrame)
-            direction = new Vector3(-1, 0, 0);
-        else if (keyboard.dKey.wasPressedThisFrame || keyboard.rightArrowKey.wasPressedThisFrame)
-            direction = new Vector3(1, 0, 0);
-
-        // Если направление выбрано, отправляем событие
-        if (direction != Vector3.zero)
+        // Проверяем нажатие левой кнопки мыши (в новой Input System)
+        if (Mouse.current.leftButton.wasPressedThisFrame)
         {
-            EventBus.Publish(new MoveRequestEvent { Direction = direction });
+            Vector2 mousePosition = Mouse.current.position.ReadValue();
+            Ray ray = _mainCamera.ScreenPointToRay(mousePosition);
+
+            if (Physics.Raycast(ray, out RaycastHit hit))
+            {
+                // Округляем мировые координаты точки удара, чтобы получить индекс клетки
+                int x = Mathf.RoundToInt(hit.point.x);
+                int z = Mathf.RoundToInt(hit.point.z);
+
+                Vector2Int clickedCell = new Vector2Int(x, z);
+
+                // Отправляем запрос на построение пути к этой клетке
+                EventBus.Publish(new PathRequestEvent { TargetGridPos = clickedCell });
+            }
         }
     }
 }
