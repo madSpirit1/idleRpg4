@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6d6c6fe2b3b4496ab9bd232896a988ea, type: 3}
   m_Name: Water
   m_EditorClassIdentifier: Assembly-CSharp::TileDataConfig
-  tileName: Wall
+  tileName: Water
   isWalkable: 0
   tileSprite: {fileID: 0}
-  debugColor: {r: 0.07876467, g: 0.09433961, b: 0.08048055, a: 1}
+  debugColor: {r: 0.18405126, g: 0.29372507, b: 0.8301887, a: 1}

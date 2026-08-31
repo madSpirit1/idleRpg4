@@ -15,4 +15,4 @@ MonoBehaviour:
   tileName: Wall
   isWalkable: 0
   tileSprite: {fileID: 0}
-  debugColor: {r: 0.07876467, g: 0.09433961, b: 0.08048055, a: 1}
+  debugColor: {r: 0.735849, g: 0.22229567, b: 0.20478818, a: 1}

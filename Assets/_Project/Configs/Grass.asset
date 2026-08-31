@@ -14,5 +14,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TileDataConfig
   tileName: Grass
   isWalkable: 1
-  tileSprite: {fileID: 0}
+  tileSprite: {fileID: 21300000, guid: b736498e7d65df4438f6314278e9a015, type: 3}
   debugColor: {r: 0.253649, g: 0.7169812, b: 0.30399922, a: 1}
