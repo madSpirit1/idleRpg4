@@ -43,52 +43,79 @@ public class GridController : MonoBehaviour
         }
     }
 
-    private List<Vector2Int> CalculatePath(Vector2Int start, Vector2Int end)
+   private List<Vector2Int> CalculatePath(Vector2Int start, Vector2Int end)
+{
+    List<Vector2Int> path = new List<Vector2Int>();
+
+    // Если конечная клетка непроходима или мы кликнули на себя — сразу выходим
+    if (start == end || !GridGenerator.Instance.IsCellWalkable(end))
     {
-        List<Vector2Int> path = new List<Vector2Int>();
-        Vector2Int current = start;
-    
-        // Безопасный счетчик, чтобы игра не зависла
-        int maxSteps = 50; 
-        int steps = 0;
-
-        // Сразу проверяем: если финальная клетка вообще непроходима, то даже не начинаем путь
-        if (!GridGenerator.Instance.IsCellWalkable(end))
-        {
-            return path; // Возвращаем пустой путь
-        }
-
-        // Пошагово строим линию до цели
-        while (current != end && !(steps >= maxSteps))
-        {
-            steps++;
-        
-            // Определяем направление шага по каждой оси (-1, 0 или 1)
-            int stepX = 0;
-            if (end.x > current.x) stepX = 1;
-            else if (end.x < current.x) stepX = -1;
-
-            int stepY = 0;
-            if (end.y > current.y) stepY = 1;
-            else if (end.y < current.y) stepY = -1;
-
-            Vector2Int nextStep = current + new Vector2Int(stepX, stepY);
-
-            // Проверяем проходимость следующего шага
-            if (GridGenerator.Instance.IsCellWalkable(nextStep))
-            {
-                current = nextStep;
-                path.Add(current);
-            }
-            else
-            {
-                // Если наткнулись на препятствие посреди пути — останавливаемся
-                break;
-            }
-        }
-
         return path;
     }
+
+    // Очередь для сканирования клеток (волна)
+    Queue<Vector2Int> queue = new Queue<Vector2Int>();
+    // Словарь, чтобы запомнить, из какой клетки мы пришли в текущую (для восстановления пути)
+    Dictionary<Vector2Int, Vector2Int> cameFrom = new Dictionary<Vector2Int, Vector2Int>();
+
+    queue.Enqueue(start);
+    cameFrom.Add(start, start);
+
+    bool pathFound = false;
+
+    // Списки направлений: 4 по прямой + 4 по диагонали
+    Vector2Int[] directions = new Vector2Int[]
+    {
+        new Vector2Int(0, 1),   // Вверх
+        new Vector2Int(0, -1),  // Вниз
+        new Vector2Int(1, 0),   // Вправо
+        new Vector2Int(-1, 0),  // Влево
+        new Vector2Int(1, 1),   // Вверх-Вправо
+        new Vector2Int(-1, 1),  // Вверх-Влево
+        new Vector2Int(1, -1),  // Вниз-Вправо
+        new Vector2Int(-1, -1)  // Вниз-Влево
+    };
+
+    // Запускаем волну по сетке
+    while (queue.Count > 0)
+    {
+        Vector2Int current = queue.Dequeue();
+
+        if (current == end)
+        {
+            pathFound = true;
+            break;
+        }
+
+        // Проверяем всех соседей текущей клетки
+        for (int i = 0; !(i >= directions.Length); i++)
+        {
+            Vector2Int nextStep = current + directions[i];
+
+            // Если сосед в границах карты и он проходим, и мы там еще не были
+            if (GridGenerator.Instance.IsCellWalkable(nextStep) && !cameFrom.ContainsKey(nextStep))
+            {
+                queue.Enqueue(nextStep);
+                cameFrom.Add(nextStep, current);
+            }
+        }
+    }
+
+    // Если волна дошла до цели, собираем путь обратно от конца к старту
+    if (pathFound)
+    {
+        Vector2Int currentTile = end;
+        while (currentTile != start)
+        {
+            path.Add(currentTile);
+            currentTile = cameFrom[currentTile];
+        }
+        // Переворачиваем список, чтобы он шел от стартовой точки к финишу
+        path.Reverse();
+    }
+
+    return path;
+}
 
 
     private void SpawnPathDots(List<Vector2Int> path)
