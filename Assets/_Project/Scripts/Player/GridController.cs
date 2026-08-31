@@ -43,24 +43,58 @@ public class GridController : MonoBehaviour
         }
     }
 
-    // Алгоритм построения прямой линии на сетке с учетом диагоналей
     private List<Vector2Int> CalculatePath(Vector2Int start, Vector2Int end)
     {
         List<Vector2Int> path = new List<Vector2Int>();
         Vector2Int current = start;
+    
+        // Ограничение безопасности, чтобы цикл не завис, если пути нет
+        int maxSteps = 100; 
+        int steps = 0;
 
-        // Пока не дошли до целевой клетки, делаем шаги по 1 клетке
-        while (current != end)
+        while (current != end && steps < maxSteps)
         {
+            steps++;
             int stepX = Mathf.Clamp(end.x - current.x, -1, 1);
             int stepY = Mathf.Clamp(end.y - current.y, -1, 1);
 
-            current += new Vector2Int(stepX, stepY);
-            path.Add(current);
+            Vector2Int nextStep = current + new Vector2Int(stepX, stepY);
+
+            // ВАЖНО: Спрашиваем у генератора, проходима ли СЛЕДУЮЩАЯ клетка
+            if (GridGenerator.Instance.IsCellWalkable(nextStep))
+            {
+                current = nextStep;
+                path.Add(current);
+            }
+            else
+            {
+                // Если на пути стена по диагонали или прямой, пытаемся обойти (простейший обход)
+                // Пытаемся сделать шаг только по X
+                Vector2Int altStepX = current + new Vector2Int(stepX, 0);
+                // Пытаемся сделать шаг только по Y
+                Vector2Int altStepY = current + new Vector2Int(0, stepY);
+
+                if (GridGenerator.Instance.IsCellWalkable(altStepX))
+                {
+                    current = altStepX;
+                    path.Add(current);
+                }
+                else if (GridGenerator.Instance.IsCellWalkable(altStepY))
+                {
+                    current = altStepY;
+                    path.Add(current);
+                }
+                else
+                {
+                    // Если зажали в тупик — прекращаем строить путь
+                    break;
+                }
+            }
         }
 
         return path;
     }
+
 
     private void SpawnPathDots(List<Vector2Int> path)
     {
