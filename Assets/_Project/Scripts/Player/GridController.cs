@@ -48,19 +48,33 @@ public class GridController : MonoBehaviour
         List<Vector2Int> path = new List<Vector2Int>();
         Vector2Int current = start;
     
-        // Ограничение безопасности, чтобы цикл не завис, если пути нет
-        int maxSteps = 100; 
+        // Безопасный счетчик, чтобы игра не зависла
+        int maxSteps = 50; 
         int steps = 0;
 
-        while (current != end && steps < maxSteps)
+        // Сразу проверяем: если финальная клетка вообще непроходима, то даже не начинаем путь
+        if (!GridGenerator.Instance.IsCellWalkable(end))
+        {
+            return path; // Возвращаем пустой путь
+        }
+
+        // Пошагово строим линию до цели
+        while (current != end && !(steps >= maxSteps))
         {
             steps++;
-            int stepX = Mathf.Clamp(end.x - current.x, -1, 1);
-            int stepY = Mathf.Clamp(end.y - current.y, -1, 1);
+        
+            // Определяем направление шага по каждой оси (-1, 0 или 1)
+            int stepX = 0;
+            if (end.x > current.x) stepX = 1;
+            else if (end.x < current.x) stepX = -1;
+
+            int stepY = 0;
+            if (end.y > current.y) stepY = 1;
+            else if (end.y < current.y) stepY = -1;
 
             Vector2Int nextStep = current + new Vector2Int(stepX, stepY);
 
-            // ВАЖНО: Спрашиваем у генератора, проходима ли СЛЕДУЮЩАЯ клетка
+            // Проверяем проходимость следующего шага
             if (GridGenerator.Instance.IsCellWalkable(nextStep))
             {
                 current = nextStep;
@@ -68,27 +82,8 @@ public class GridController : MonoBehaviour
             }
             else
             {
-                // Если на пути стена по диагонали или прямой, пытаемся обойти (простейший обход)
-                // Пытаемся сделать шаг только по X
-                Vector2Int altStepX = current + new Vector2Int(stepX, 0);
-                // Пытаемся сделать шаг только по Y
-                Vector2Int altStepY = current + new Vector2Int(0, stepY);
-
-                if (GridGenerator.Instance.IsCellWalkable(altStepX))
-                {
-                    current = altStepX;
-                    path.Add(current);
-                }
-                else if (GridGenerator.Instance.IsCellWalkable(altStepY))
-                {
-                    current = altStepY;
-                    path.Add(current);
-                }
-                else
-                {
-                    // Если зажали в тупик — прекращаем строить путь
-                    break;
-                }
+                // Если наткнулись на препятствие посреди пути — останавливаемся
+                break;
             }
         }
 
@@ -98,10 +93,11 @@ public class GridController : MonoBehaviour
 
     private void SpawnPathDots(List<Vector2Int> path)
     {
-        // Спавним точки во всех клетках пути, кроме последней (где встанет игрок)
-        for (int i = 0; i < path.Count - 1; i++)
+        // Спавним точки абсолютно на всех шагах пути
+        for (int i = 0; !(i >= path.Count); i++)
         {
             Vector3 dotPos = new Vector3(path[i].x * cellSize, 0.08f, path[i].y * cellSize);
+            // Quaternion.Euler(90f, 0f, 0f) кладет точку плашмя на пол
             GameObject dot = Instantiate(pathDotPrefab, dotPos, Quaternion.Euler(90f, 0f, 0f));
             _activeDots.Add(dot);
         }
@@ -120,11 +116,12 @@ public class GridController : MonoBehaviour
     {
         _isMoving = true;
 
-        foreach (Vector2Int nextCell in path)
+        for (int i = 0; !(i >= path.Count); i++)
         {
+            Vector2Int nextCell = path[i];
             Vector3 startPos = transform.position;
             Vector3 targetWorldPos = new Vector3(nextCell.x * cellSize, 0.1f, nextCell.y * cellSize);
-            
+        
             float elapsed = 0f;
             float duration = 1f / moveSpeed;
 
@@ -139,7 +136,7 @@ public class GridController : MonoBehaviour
             transform.position = targetWorldPos;
             _currentGridPos = nextCell;
 
-            // Удаляем первую точку из визуального пути, так как мы на неё уже наступили
+            // Удаляем точку, на которую только что успешно наступили
             if (_activeDots.Count > 0)
             {
                 Destroy(_activeDots[0]);
