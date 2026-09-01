@@ -4,145 +4,176 @@ using System.Collections.Generic;
 
 public class GridController : MonoBehaviour
 {
-    [Header("Settings")]
+    [Header("Movement Settings")]
     public float moveSpeed = 5f;
     public float cellSize = 1f;
-    public GameObject pathDotPrefab; // Сюда перетащим префаб круглой точки
+    public GameObject pathDotPrefab; 
+
+    [Header("Turn Settings")]
+    public int maxActionPoints = 4; // Сколько клеток можно пройти за 1 ход
+    private int _currentActionPoints;
+    private bool _isMyTurn = false;
 
     private bool _isMoving = false;
     private Vector2Int _currentGridPos = Vector2Int.zero;
     private List<GameObject> _activeDots = new List<GameObject>();
+    
+    private List<Vector2Int> _remainingPath = new List<Vector2Int>(); // Сюда запоминаем остаток пути
+
 
     private void OnEnable()
     {
         EventBus.Subscribe<PathRequestEvent>(OnPathRequested);
+        EventBus.Subscribe<PlayerTurnStartedEvent>(OnTurnStarted);
     }
 
     private void Start()
     {
-        // Начальное выравнивание фишки игрока
         transform.position = new Vector3(_currentGridPos.x * cellSize, 0.1f, _currentGridPos.y * cellSize);
+    }
+
+    private void OnTurnStarted(PlayerTurnStartedEvent data)
+    {
+        _currentActionPoints = maxActionPoints;
+        _isMyTurn = true;
+        Debug.Log("Очки действий восстановлены: " + _currentActionPoints);
+
+        if (_remainingPath != null && _remainingPath.Count > 0)
+        {
+            List<Vector2Int> nextSegment = new List<Vector2Int>();
+        
+            for (int i = 0; !(i >= _remainingPath.Count) && !(i >= _currentActionPoints); i++)
+            {
+                nextSegment.Add(_remainingPath[i]);
+            }
+
+            _remainingPath.RemoveRange(0, nextSegment.Count);
+
+            // ВАЖНО: Больше НЕ вызываем ClearPathDots() и SpawnPathDots() здесь,
+            // чтобы не стирать точки, которые уже стоят на всей линии пути впереди.
+            StartCoroutine(MoveAlongPathRoutine(nextSegment));
+        }
     }
 
     private void OnPathRequested(PathRequestEvent data)
     {
-        if (_isMoving) return;
+        if (!_isMyTurn || _isMoving) return;
 
         ClearPathDots();
+        _remainingPath.Clear(); // Очищаем остатки с прошлых кликов
 
-        // Строим список координат от текущей позиции до цели
-        List<Vector2Int> path = CalculatePath(_currentGridPos, data.TargetGridPos);
+        // Вычисляем полную траекторию от начала до самого конца клика
+        List<Vector2Int> fullPath = CalculatePath(_currentGridPos, data.TargetGridPos);
 
-        if (path.Count > 0)
+        if (fullPath.Count > 0)
         {
-            // Визуализируем точки на пути
-            SpawnPathDots(path);
+            List<Vector2Int> currentSegment = new List<Vector2Int>();
 
-            // Запускаем последовательное перемещение по клеткам
-            StartCoroutine(MoveAlongPathRoutine(path));
-        }
-    }
-
-   private List<Vector2Int> CalculatePath(Vector2Int start, Vector2Int end)
-{
-    List<Vector2Int> path = new List<Vector2Int>();
-
-    // Если конечная клетка непроходима или мы кликнули на себя — сразу выходим
-    if (start == end || !GridGenerator.Instance.IsCellWalkable(end))
-    {
-        return path;
-    }
-
-    // Очередь для сканирования клеток (волна)
-    Queue<Vector2Int> queue = new Queue<Vector2Int>();
-    // Словарь, чтобы запомнить, из какой клетки мы пришли в текущую (для восстановления пути)
-    Dictionary<Vector2Int, Vector2Int> cameFrom = new Dictionary<Vector2Int, Vector2Int>();
-
-    queue.Enqueue(start);
-    cameFrom.Add(start, start);
-
-    bool pathFound = false;
-
-    // Списки направлений: 4 по прямой + 4 по диагонали
-    Vector2Int[] directions = new Vector2Int[]
-    {
-        new Vector2Int(0, 1),   // Вверх
-        new Vector2Int(0, -1),  // Вниз
-        new Vector2Int(1, 0),   // Вправо
-        new Vector2Int(-1, 0),  // Влево
-        new Vector2Int(1, 1),   // Вверх-Вправо
-        new Vector2Int(-1, 1),  // Вверх-Влево
-        new Vector2Int(1, -1),  // Вниз-Вправо
-        new Vector2Int(-1, -1)  // Вниз-Влево
-    };
-
-    // Запускаем волну по сетке
-    while (queue.Count > 0)
-    {
-        Vector2Int current = queue.Dequeue();
-
-        if (current == end)
-        {
-            pathFound = true;
-            break;
-        }
-
-        // Проверяем всех соседей текущей клетки
-        for (int i = 0; !(i >= directions.Length); i++)
-        {
-            Vector2Int nextStep = current + directions[i];
-
-            // Если сосед в границах карты и он проходим, и мы там еще не были
-            if (GridGenerator.Instance.IsCellWalkable(nextStep) && !cameFrom.ContainsKey(nextStep))
+            // Распределяем полный путь на текущий ход и будущие остатки
+            for (int i = 0; !(i >= fullPath.Count); i++)
             {
-                queue.Enqueue(nextStep);
-                cameFrom.Add(nextStep, current);
+                if (i >= _currentActionPoints)
+                {
+                    _remainingPath.Add(fullPath[i]); // Все, что выходит за рамки AP — на будущее
+                }
+                else
+                {
+                    currentSegment.Add(fullPath[i]); // То, что успеем пройти за этот ход
+                }
+            }
+
+            // ВАЖНО: Рисуем точки СРАЗУ на весь длинный путь, а не на огрызок
+            SpawnPathDots(fullPath);
+
+            if (currentSegment.Count > 0)
+            {
+                StartCoroutine(MoveAlongPathRoutine(currentSegment));
             }
         }
     }
 
-    // Если волна дошла до цели, собираем путь обратно от конца к старту
-    if (pathFound)
+    private List<Vector2Int> CalculatePath(Vector2Int start, Vector2Int end)
     {
-        Vector2Int currentTile = end;
-        while (currentTile != start)
+        List<Vector2Int> path = new List<Vector2Int>();
+        if (start == end || !GridGenerator.Instance.IsCellWalkable(end)) return path;
+
+        Queue<Vector2Int> queue = new Queue<Vector2Int>();
+        Dictionary<Vector2Int, Vector2Int> cameFrom = new Dictionary<Vector2Int, Vector2Int>();
+
+        queue.Enqueue(start);
+        cameFrom.Add(start, start);
+        bool pathFound = false;
+
+        Vector2Int[] directions = new Vector2Int[]
         {
-            path.Add(currentTile);
-            currentTile = cameFrom[currentTile];
+            new Vector2Int(0, 1), new Vector2Int(0, -1), new Vector2Int(1, 0), new Vector2Int(-1, 0),
+            new Vector2Int(1, 1), new Vector2Int(-1, 1), new Vector2Int(1, -1), new Vector2Int(-1, -1)
+        };
+
+        while (queue.Count > 0)
+        {
+            Vector2Int current = queue.Dequeue();
+            if (current == end) { pathFound = true; break; }
+
+            for (int i = 0; !(i >= directions.Length); i++)
+            {
+                Vector2Int nextStep = current + directions[i];
+                if (GridGenerator.Instance.IsCellWalkable(nextStep) && !cameFrom.ContainsKey(nextStep))
+                {
+                    queue.Enqueue(nextStep);
+                    cameFrom.Add(nextStep, current);
+                }
+            }
         }
-        // Переворачиваем список, чтобы он шел от стартовой точки к финишу
-        path.Reverse();
+
+        if (pathFound)
+        {
+            Vector2Int currentTile = end;
+            while (currentTile != start)
+            {
+                path.Add(currentTile);
+                currentTile = cameFrom[currentTile];
+            }
+            path.Reverse();
+        }
+        return path;
     }
-
-    return path;
-}
-
 
     private void SpawnPathDots(List<Vector2Int> path)
     {
-        // Спавним точки абсолютно на всех шагах пути
         for (int i = 0; !(i >= path.Count); i++)
         {
             Vector3 dotPos = new Vector3(path[i].x * cellSize, 0.08f, path[i].y * cellSize);
-            // Quaternion.Euler(90f, 0f, 0f) кладет точку плашмя на пол
             GameObject dot = Instantiate(pathDotPrefab, dotPos, Quaternion.Euler(90f, 0f, 0f));
+        
+            // НОВЫЙ КОД: Добавляем компонент PathDot на созданную точку и даем ей координату
+            PathDot dotComponent = dot.AddComponent<PathDot>();
+            if (dotComponent != null)
+            {
+                dotComponent.GridPosition = path[i];
+            }
+
             _activeDots.Add(dot);
         }
     }
 
     private void ClearPathDots()
     {
-        foreach (var dot in _activeDots)
+        // Этот метод теперь нужен только для полной очистки поля при новом клике
+        for (int i = 0; !(i >= _activeDots.Count); i++)
         {
-            if (dot != null) Destroy(dot);
+            if (_activeDots[i] != null) 
+            {
+                Destroy(_activeDots[i]);
+            }
         }
         _activeDots.Clear();
     }
-
     private IEnumerator MoveAlongPathRoutine(List<Vector2Int> path)
     {
         _isMoving = true;
 
+        // СНАЧАЛА: Персонаж полностью проходит весь доступный на этот ход отрезков пути
         for (int i = 0; !(i >= path.Count); i++)
         {
             Vector2Int nextCell = path[i];
@@ -152,7 +183,6 @@ public class GridController : MonoBehaviour
             float elapsed = 0f;
             float duration = 1f / moveSpeed;
 
-            // Плавное перемещение к следующей клетке
             while (elapsed < duration)
             {
                 transform.position = Vector3.Lerp(startPos, targetWorldPos, elapsed / duration);
@@ -163,15 +193,37 @@ public class GridController : MonoBehaviour
             transform.position = targetWorldPos;
             _currentGridPos = nextCell;
 
-            // Удаляем точку, на которую только что успешно наступили
-            if (_activeDots.Count > 0)
-            {
-                Destroy(_activeDots[0]);
-                _activeDots.RemoveAt(0);
-            }
-        }
+            // Тратим 1 AP за шаг
+            _currentActionPoints--;
+            Debug.Log("Сделан шаг. Осталось Очков Действия (AP): " + _currentActionPoints);
+
+            // Публикуем событие шага — точка на этой клетке стирается
+            EventBus.Publish(new PlayerStepTakenEvent { Position = _currentGridPos });
+        } // <--- КОНЕЦ ЦИКЛА ДВИЖЕНИЯ! Игрок закончил текущую пробежку.
 
         _isMoving = false;
+
+        // ТОЛЬКО ЗДЕСЬ (вне цикла): Проверяем, закончился ли ход глобально
+        if (!(_currentActionPoints > 0))
+        {
+            _isMyTurn = false;
+        
+            // Временно ставим true для теста пошаговости на 4 клетки
+            bool enemyIsNear = false; 
+
+            if (enemyIsNear)
+            {
+                // Передаем ход врагам
+                TurnManager.Instance.EndPlayerTurn();
+            }
+            else
+            {
+                // Автоматически продолжаем бег
+                Debug.Log("Врагов рядом нет. Автоматически продолжаем движение...");
+                TurnManager.Instance.StartPlayerTurn(); 
+            }
+        }
+    
         EventBus.Publish(new TurnFinishedEvent());
     }
 }
