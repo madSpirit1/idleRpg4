@@ -38,6 +38,11 @@ public class GridGenerator : MonoBehaviour
         // else
         // {
             GenerateRandomGrid();
+            // ВАЖНО: Карта гарантированно построена. Теперь безопасно вызываем спавн врагов!
+            if (EnemySpawner.Instance != null)
+            {
+                EnemySpawner.Instance.SpawnEnemiesOnReadyGrid();
+            }
         // }
     }
 

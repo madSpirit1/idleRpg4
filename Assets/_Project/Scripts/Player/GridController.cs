@@ -204,24 +204,14 @@ public class GridController : MonoBehaviour
         _isMoving = false;
 
         // ТОЛЬКО ЗДЕСЬ (вне цикла): Проверяем, закончился ли ход глобально
+        // ПРОВЕРКА ОКОНЧАНИЯ ХОДА (вне цикла движения)
         if (!(_currentActionPoints > 0))
         {
             _isMyTurn = false;
-        
-            // Временно ставим true для теста пошаговости на 4 клетки
-            bool enemyIsNear = false; 
+            ClearPathDots();
 
-            if (enemyIsNear)
-            {
-                // Передаем ход врагам
-                TurnManager.Instance.EndPlayerTurn();
-            }
-            else
-            {
-                // Автоматически продолжаем бег
-                Debug.Log("Врагов рядом нет. Автоматически продолжаем движение...");
-                TurnManager.Instance.StartPlayerTurn(); 
-            }
+            // Передаем ход менеджеру. Он сам проверит наличие врагов на сцене
+            TurnManager.Instance.EndPlayerTurn();
         }
     
         EventBus.Publish(new TurnFinishedEvent());

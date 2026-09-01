@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using UnityEngine;
 
 public static class EventBus
 {
@@ -52,3 +53,8 @@ public struct PathRequestEvent { public UnityEngine.Vector2Int TargetGridPos; }
 public struct TurnFinishedEvent { }
 public struct PlayerTurnStartedEvent { }
 public struct PlayerStepTakenEvent { public UnityEngine.Vector2Int Position; }
+// Сигнал от TurnManager, запускающий ход врагов
+public struct EnemyTurnStartedEvent { }
+
+// Сигнал от конкретного врага, что он закончил свои шаги
+public struct EnemyTurnFinishedEvent { public GameObject EnemyObject; }

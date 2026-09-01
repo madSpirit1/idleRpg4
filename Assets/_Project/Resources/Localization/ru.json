@@ -1,0 +1,10 @@
+﻿{
+  "keys": [
+    {"key": "enemy_bandit_name", "value": "Бандит"},
+    {"key": "race_human", "value": "Человек"},
+    {"key": "log_spawn", "value": "Появился"},
+    {"key": "log_attack", "value": "атакует игрока на"},
+    {"key": "log_damage", "value": "единиц урона!"},
+    {"key": "log_end_turn", "value": "завершил свои действия."}
+  ]
+}

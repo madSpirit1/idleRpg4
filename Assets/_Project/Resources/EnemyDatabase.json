@@ -1,0 +1,14 @@
+﻿{
+  "enemies": [
+    {
+      "enemyID": "bandit",
+      "nameKey": "enemy_bandit_name",
+      "raceKey": "race_human",
+      "textureName": "bandit_face",
+      "maxHp": 100,
+      "maxMana": 100,
+      "damage": 10,
+      "maxActionPoints": 2
+    }
+  ]
+}

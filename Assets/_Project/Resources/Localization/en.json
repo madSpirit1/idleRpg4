@@ -1,0 +1,10 @@
+﻿{
+  "keys": [
+    {"key": "enemy_bandit_name", "value": "Bandit"},
+    {"key": "race_human", "value": "Human"},
+    {"key": "log_spawn", "value": "Spawned"},
+    {"key": "log_attack", "value": "attacks player for"},
+    {"key": "log_damage", "value": "damage!"},
+    {"key": "log_end_turn", "value": "finished their action."}
+  ]
+}
