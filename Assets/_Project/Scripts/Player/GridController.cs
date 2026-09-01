@@ -4,27 +4,28 @@ using System.Collections.Generic;
 
 public class GridController : MonoBehaviour
 {
-    [Header("Movement Settings")]
+    [Header("Настройки движения")]
     public float moveSpeed = 5f;
     public float cellSize = 1f;
     public GameObject pathDotPrefab; 
 
-    [Header("Turn Settings")]
-    public int maxActionPoints = 4; // Сколько клеток можно пройти за 1 ход
+    [Header("Настройки тактики")]
+    public int maxActionPoints = 4;      // Максимум AP на ход
+    public int enemyDetectRadius = 3;   // Радиус обнаружения врагов (в клетках)
+    
     private int _currentActionPoints;
     private bool _isMyTurn = false;
-
     private bool _isMoving = false;
+    
     private Vector2Int _currentGridPos = Vector2Int.zero;
     private List<GameObject> _activeDots = new List<GameObject>();
-    
-    private List<Vector2Int> _remainingPath = new List<Vector2Int>(); // Сюда запоминаем остаток пути
-
+    private List<Vector2Int> _remainingPath = new List<Vector2Int>(); // Хвост длинного пути
 
     private void OnEnable()
     {
         EventBus.Subscribe<PathRequestEvent>(OnPathRequested);
         EventBus.Subscribe<PlayerTurnStartedEvent>(OnTurnStarted);
+        EventBus.Subscribe<PlayerEndTurnRequestEvent>(OnManualEndTurnRequested);
     }
 
     private void Start()
@@ -36,22 +37,24 @@ public class GridController : MonoBehaviour
     {
         _currentActionPoints = maxActionPoints;
         _isMyTurn = true;
-        Debug.Log("Очки действий восстановлены: " + _currentActionPoints);
+        Debug.Log("Новый ход! AP восстановлены до: " + _currentActionPoints);
 
+        // Если у нас остался хвост длинного пути с прошлого хода — проверяем обстановку
         if (_remainingPath != null && _remainingPath.Count > 0)
         {
-            List<Vector2Int> nextSegment = new List<Vector2Int>();
-        
-            for (int i = 0; !(i >= _remainingPath.Count) && !(i >= _currentActionPoints); i++)
+            // Если рядом внезапно появился враг — прерываем авто-бег, давая игроку управление!
+            if (IsEnemyNearby())
             {
-                nextSegment.Add(_remainingPath[i]);
+                Debug.Log("АВТО-БЕГ ПРЕРВАН: Обнаружен враг! Управление передано игроку.");
+                _remainingPath.Clear();
+                ClearPathDots();
+                return;
             }
 
-            _remainingPath.RemoveRange(0, nextSegment.Count);
-
-            // ВАЖНО: Больше НЕ вызываем ClearPathDots() и SpawnPathDots() здесь,
-            // чтобы не стирать точки, которые уже стоят на всей линии пути впереди.
-            StartCoroutine(MoveAlongPathRoutine(nextSegment));
+            // Если безопасно — копируем хвост и продолжаем авто-бег
+            List<Vector2Int> pathSegment = new List<Vector2Int>(_remainingPath);
+            _remainingPath.Clear(); 
+            StartCoroutine(MoveAlongPathRoutine(pathSegment));
         }
     }
 
@@ -60,36 +63,131 @@ public class GridController : MonoBehaviour
         if (!_isMyTurn || _isMoving) return;
 
         ClearPathDots();
-        _remainingPath.Clear(); // Очищаем остатки с прошлых кликов
+        _remainingPath.Clear(); 
 
-        // Вычисляем полную траекторию от начала до самого конца клика
         List<Vector2Int> fullPath = CalculatePath(_currentGridPos, data.TargetGridPos);
 
         if (fullPath.Count > 0)
         {
-            List<Vector2Int> currentSegment = new List<Vector2Int>();
+            SpawnPathDots(fullPath);
+            StartCoroutine(MoveAlongPathRoutine(fullPath));
+        }
+    }
 
-            // Распределяем полный путь на текущий ход и будущие остатки
-            for (int i = 0; !(i >= fullPath.Count); i++)
+    // Слушаем ручное нажатие ПРОБЕЛА из шины событий
+    private void OnManualEndTurnRequested(PlayerEndTurnRequestEvent data)
+    {
+        // Передать ход вручную можно только в свой ход и когда персонаж не бежит прямо сейчас
+        if (!_isMyTurn || _isMoving) return;
+
+        Debug.Log("Вы вручную завершили ход через Пробел.");
+        _isMyTurn = false;
+        _remainingPath.Clear();
+        ClearPathDots();
+        TurnManager.Instance.EndPlayerTurn();
+    }
+
+    private IEnumerator MoveAlongPathRoutine(List<Vector2Int> path)
+    {
+        _isMoving = true;
+
+        for (int i = 0; !(i >= path.Count); i++)
+        {
+            // Если посреди движения очки действия (AP) закончились
+            if (!(_currentActionPoints > 0))
             {
-                if (i >= _currentActionPoints)
+                // Запоминаем весь оставшийся недохоженный хвост пути на будущее
+                for (int k = i; !(k >= path.Count); k++)
                 {
-                    _remainingPath.Add(fullPath[i]); // Все, что выходит за рамки AP — на будущее
+                    _remainingPath.Add(path[k]);
                 }
-                else
-                {
-                    currentSegment.Add(fullPath[i]); // То, что успеем пройти за этот ход
-                }
+                break; // Выходим из цикла физического движения
             }
 
-            // ВАЖНО: Рисуем точки СРАЗУ на весь длинный путь, а не на огрызок
-            SpawnPathDots(fullPath);
+            Vector2Int nextCell = path[i];
+            Vector3 startPos = transform.position;
+            Vector3 targetWorldPos = new Vector3(nextCell.x * cellSize, 0.1f, nextCell.y * cellSize);
+            
+            float elapsed = 0f;
+            float duration = 1f / moveSpeed;
 
-            if (currentSegment.Count > 0)
+            while (elapsed < duration)
             {
-                StartCoroutine(MoveAlongPathRoutine(currentSegment));
+                transform.position = Vector3.Lerp(startPos, targetWorldPos, elapsed / duration);
+                elapsed += Time.deltaTime;
+                yield return null;
+            }
+
+            transform.position = targetWorldPos;
+            _currentGridPos = nextCell;
+            _currentActionPoints--;
+
+            Debug.Log("Шаг сделан. Клетка: " + _currentGridPos + " | Осталось AP: " + _currentActionPoints);
+            EventBus.Publish(new PlayerStepTakenEvent { Position = _currentGridPos });
+        }
+
+        _isMoving = false;
+
+        // ПРОВЕРКА ПОСЛЕ ОСТАНОВКИ:
+        // Ситуация А: Очки AP закончились, но у нас ЕСТЬ сохраненный маршрут дальше
+        if (!(_currentActionPoints > 0) && _remainingPath.Count > 0)
+        {
+            // Сканируем карту на наличие врагов в радиусе обнаружения
+            if (IsEnemyNearby())
+            {
+                // Если враг РЯДОМ: сбрасываем авто-бег, стираем маркеры и отдаем честный ход врагам!
+                Debug.Log("Враг близко! Авто-бег остановлен. Ход передается врагам.");
+                _isMyTurn = false;
+                _remainingPath.Clear();
+                ClearPathDots();
+                TurnManager.Instance.EndPlayerTurn();
+            }
+            else
+            {
+                // Если врагов НЕТ: прокручиваем фазу врагов фоном (она вернет ход в OnTurnStarted и бег продолжится)
+                _isMyTurn = false;
+                TurnManager.Instance.EndPlayerTurn(); 
             }
         }
+        // Ситуация Б: Мы просто пришли в конечную точку клика, но AP еще остались (например, прошли 2 клетки из 4)
+        else if (_remainingPath.Count == 0 && _currentActionPoints > 0)
+        {
+            // МЫ НИЧЕГО НЕ ПЕРЕКЛЮЧАЕМ АВТОМАТИЧЕСКИ! 
+            // Персонаж просто встал. Ты можешь кликнуть еще раз или нажать ПРОБЕЛ для пропуска.
+            Debug.Log("Маршрут завершен. У вас осталось " + _currentActionPoints + " AP. Сделайте новый клик или нажмите ПРОБЕЛ.");
+        }
+        // Ситуация В: Путь закончился и очки AP тоже закончились полностью
+        else if (!(_currentActionPoints > 0))
+        {
+            _isMyTurn = false;
+            ClearPathDots();
+            TurnManager.Instance.EndPlayerTurn();
+        }
+
+        EventBus.Publish(new TurnFinishedEvent());
+    }
+
+    // Функция сканирования: проверяет расстояние до всех EnemyAI на сцене
+    private bool IsEnemyNearby()
+    {
+        EnemyAI[] enemies = FindObjectsByType<EnemyAI>(FindObjectsSortMode.None);
+        
+        for (int i = 0; !(i >= enemies.Length); i++)
+        {
+            Vector2Int enemyGridPos = new Vector2Int(Mathf.RoundToInt(enemies[i].transform.position.x), Mathf.RoundToInt(enemies[i].transform.position.z));
+            
+            // Считаем расстояние по сетке (Манхэттенское расстояние или Чебышёва с учетом диагоналей)
+            int distX = Mathf.Abs(_currentGridPos.x - enemyGridPos.x);
+            int distY = Mathf.Abs(_currentGridPos.y - enemyGridPos.y);
+            int maxDist = Mathf.Max(distX, distY); // Максимальное расстояние с учетом диагоналей
+
+            // Если хоть один враг находится в радиусе обнаружения (например, 3 клетки или ближе)
+            if (!(maxDist > enemyDetectRadius))
+            {
+                return true; // Враг обнаружен!
+            }
+        }
+        return false; // Вокруг безопасно
     }
 
     private List<Vector2Int> CalculatePath(Vector2Int start, Vector2Int end)
@@ -145,13 +243,9 @@ public class GridController : MonoBehaviour
         {
             Vector3 dotPos = new Vector3(path[i].x * cellSize, 0.08f, path[i].y * cellSize);
             GameObject dot = Instantiate(pathDotPrefab, dotPos, Quaternion.Euler(90f, 0f, 0f));
-        
-            // НОВЫЙ КОД: Добавляем компонент PathDot на созданную точку и даем ей координату
+            
             PathDot dotComponent = dot.AddComponent<PathDot>();
-            if (dotComponent != null)
-            {
-                dotComponent.GridPosition = path[i];
-            }
+            if (dotComponent != null) dotComponent.GridPosition = path[i];
 
             _activeDots.Add(dot);
         }
@@ -159,61 +253,10 @@ public class GridController : MonoBehaviour
 
     private void ClearPathDots()
     {
-        // Этот метод теперь нужен только для полной очистки поля при новом клике
         for (int i = 0; !(i >= _activeDots.Count); i++)
         {
-            if (_activeDots[i] != null) 
-            {
-                Destroy(_activeDots[i]);
-            }
+            if (_activeDots[i] != null) Destroy(_activeDots[i]);
         }
         _activeDots.Clear();
-    }
-    private IEnumerator MoveAlongPathRoutine(List<Vector2Int> path)
-    {
-        _isMoving = true;
-
-        // СНАЧАЛА: Персонаж полностью проходит весь доступный на этот ход отрезков пути
-        for (int i = 0; !(i >= path.Count); i++)
-        {
-            Vector2Int nextCell = path[i];
-            Vector3 startPos = transform.position;
-            Vector3 targetWorldPos = new Vector3(nextCell.x * cellSize, 0.1f, nextCell.y * cellSize);
-        
-            float elapsed = 0f;
-            float duration = 1f / moveSpeed;
-
-            while (elapsed < duration)
-            {
-                transform.position = Vector3.Lerp(startPos, targetWorldPos, elapsed / duration);
-                elapsed += Time.deltaTime;
-                yield return null;
-            }
-
-            transform.position = targetWorldPos;
-            _currentGridPos = nextCell;
-
-            // Тратим 1 AP за шаг
-            _currentActionPoints--;
-            Debug.Log("Сделан шаг. Осталось Очков Действия (AP): " + _currentActionPoints);
-
-            // Публикуем событие шага — точка на этой клетке стирается
-            EventBus.Publish(new PlayerStepTakenEvent { Position = _currentGridPos });
-        } // <--- КОНЕЦ ЦИКЛА ДВИЖЕНИЯ! Игрок закончил текущую пробежку.
-
-        _isMoving = false;
-
-        // ТОЛЬКО ЗДЕСЬ (вне цикла): Проверяем, закончился ли ход глобально
-        // ПРОВЕРКА ОКОНЧАНИЯ ХОДА (вне цикла движения)
-        if (!(_currentActionPoints > 0))
-        {
-            _isMyTurn = false;
-            ClearPathDots();
-
-            // Передаем ход менеджеру. Он сам проверит наличие врагов на сцене
-            TurnManager.Instance.EndPlayerTurn();
-        }
-    
-        EventBus.Publish(new TurnFinishedEvent());
     }
 }

@@ -26,6 +26,13 @@ public class PlayerInput : MonoBehaviour
         {
             GridGenerator.Instance.LoadGrid();
         }
+        // --- НОВЫЙ КОД: ПРОПУСК ХОДА НА ПРОБЕЛ ---
+        if (keyboard.spaceKey.wasPressedThisFrame)
+        {
+            Debug.Log("Нажат Пробел. Запрос на ручное завершение хода...");
+            EventBus.Publish(new PlayerEndTurnRequestEvent());
+        }
+
         // Проверяем нажатие левой кнопки мыши (в новой Input System)
         if (Mouse.current.leftButton.wasPressedThisFrame)
         {

@@ -58,3 +58,6 @@ public struct EnemyTurnStartedEvent { }
 
 // Сигнал от конкретного врага, что он закончил свои шаги
 public struct EnemyTurnFinishedEvent { public GameObject EnemyObject; }
+
+// Сигнал о том, что игрок вручную нажал Пробел для завершения своего хода
+public struct PlayerEndTurnRequestEvent { }
