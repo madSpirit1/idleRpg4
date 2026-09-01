@@ -61,3 +61,9 @@ public struct EnemyTurnFinishedEvent { public GameObject EnemyObject; }
 
 // Сигнал о том, что игрок вручную нажал Пробел для завершения своего хода
 public struct PlayerEndTurnRequestEvent { }
+// Сигнал о нанесении урона конкретному объекту
+public struct DamageEvent 
+{ 
+    public UnityEngine.GameObject Target; 
+    public int Amount; 
+}

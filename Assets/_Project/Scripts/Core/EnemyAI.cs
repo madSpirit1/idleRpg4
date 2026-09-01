@@ -45,40 +45,50 @@ public class EnemyAI : MonoBehaviour
     {
         enemyTypeID = typeID;
         _stats = EnemyDatabase.GetStats(enemyTypeID);
-        
+    
         if (_stats != null)
         {
-            // ДИНАМИЧЕСКАЯ СМЕНА КАРТИНКИ ИЗ ПАПКИ RESOURCES
+            // Настраиваем здоровье врага из JSON параметров бандита
+            Health hpComponent = GetComponent<Health>();
+            if (hpComponent != null)
+            {
+                hpComponent.InitializeHp(_stats.maxHp);
+            }
+
             if (_spriteRenderer != null && !string.IsNullOrEmpty(_stats.textureName))
             {
                 Sprite loadedSprite = Resources.Load<Sprite>(_stats.textureName);
-                if (loadedSprite != null)
-                {
-                    _spriteRenderer.sprite = loadedSprite;
-                }
-                else
-                {
-                    Debug.LogWarning("Texture '" + _stats.textureName + "' not found in Resources folder!");
-                }
+                if (loadedSprite != null) _spriteRenderer.sprite = loadedSprite;
             }
 
             Debug.Log(LocalizationManager.Get("log_spawn") + " " + _stats.EnemyName + " (" + _stats.Race + ")! HP: " + _stats.maxHp);
         }
     }
-
+    
+    
     private void OnEnemyTurnStarted(EnemyTurnStartedEvent data)
     {
-        GridController player = FindFirstObjectByType<GridController>();
-        if (player != null)
+        // Находим игрока на сцене через класс GridController
+        GridController playerInstance = FindFirstObjectByType<GridController>();
+    
+        if (playerInstance != null)
         {
-            Vector2Int playerGridPos = new Vector2Int(Mathf.RoundToInt(player.transform.position.x), Mathf.RoundToInt(player.transform.position.z));
+            // Переводим мировые координаты игрока в координаты сетки
+            Vector2Int playerGridPos = new Vector2Int(
+                Mathf.RoundToInt(playerInstance.transform.position.x), 
+                Mathf.RoundToInt(playerInstance.transform.position.z)
+            );
+        
+            // Передаем координаты игрока в корутину движения и атаки врага
             StartCoroutine(EnemyTurnRoutine(playerGridPos));
         }
         else
         {
+            // Если игрок на сцене не найден, просто завершаем ход этого врага
             EventBus.Publish(new EnemyTurnFinishedEvent { EnemyObject = gameObject });
         }
     }
+
 
     private IEnumerator EnemyTurnRoutine(Vector2Int playerGridPos)
     {
@@ -90,12 +100,19 @@ public class EnemyAI : MonoBehaviour
 
             if (nextStep == _currentGridPos || nextStep == playerGridPos)
             {
-                if (nextStep == playerGridPos)
+                if (nextStep == playerGridPos && _stats != null)
                 {
                     Debug.Log(_stats.EnemyName + " " + LocalizationManager.Get("log_attack") + " " + _stats.damage + " " + LocalizationManager.Get("log_damage"));
+    
+                    // Снова находим ссылку на игрока для отправки события урона
+                    GridController playerInstance = FindFirstObjectByType<GridController>();
+                    if (playerInstance != null)
+                    {
+                        EventBus.Publish(new DamageEvent { Target = playerInstance.gameObject, Amount = _stats.damage });
+                    }
                 }
-                break;
             }
+
 
             _isMoving = true;
             Vector3 startPos = transform.position;
