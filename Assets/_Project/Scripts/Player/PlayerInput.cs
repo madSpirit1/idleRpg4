@@ -12,6 +12,20 @@ public class PlayerInput : MonoBehaviour
 
     void Update()
     {
+        Keyboard keyboard = Keyboard.current;
+        if (keyboard == null) return;
+
+        // --- СОХРАНЕНИЕ НА F5 ---
+        if (keyboard.f5Key.wasPressedThisFrame)
+        {
+            GridGenerator.Instance.SaveGrid();
+        }
+
+        // --- ЗАГРУЗКА НА F6 ---
+        if (keyboard.f6Key.wasPressedThisFrame)
+        {
+            GridGenerator.Instance.LoadGrid();
+        }
         // Проверяем нажатие левой кнопки мыши (в новой Input System)
         if (Mouse.current.leftButton.wasPressedThisFrame)
         {
