@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 
 public class EnemyAI : MonoBehaviour
@@ -11,6 +11,9 @@ public class EnemyAI : MonoBehaviour
     private Vector2Int _currentGridPos;
     private bool _isMoving = false;
     private SpriteRenderer _spriteRenderer;
+
+    // Логическая клетка врага (не мировая позиция — она меняется во время шага)
+    public Vector2Int GridPosition => _currentGridPos;
 
     private void Awake()
     {
@@ -40,6 +43,16 @@ public class EnemyAI : MonoBehaviour
         // ЖЕЛЕЗОБЕТОННЫЙ ПОВОРОТ: принудительно кладем фишку плашмя на пол кодом при старте!
         transform.rotation = Quaternion.Euler(90f, 0f, 0f);
     }
+
+    // Ставит врага на конкретную клетку сразу после Instantiate (Start еще не успел выполниться).
+    // Нужно, чтобы позиция была корректной для проверок занятости и для консоли.
+    public void PlaceOnCell(Vector2Int cell)
+    {
+        _currentGridPos = cell;
+        transform.position = new Vector3((float)cell.x, 0.1f, (float)cell.y);
+        transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+    }
+
     // ВЫЗЫВАЕТСЯ ПРИ СТАРТЕ ИЛИ СПАВНЕ КОДОМ
     public void InitializeEnemy(string typeID)
     {

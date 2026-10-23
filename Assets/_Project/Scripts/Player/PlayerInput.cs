@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.InputSystem;
 
 public class PlayerInput : MonoBehaviour
@@ -12,6 +12,10 @@ public class PlayerInput : MonoBehaviour
 
     void Update()
     {
+        // Пока открыта консоль, игровой ввод не обрабатываем:
+        // иначе пробел завершит ход, а клик по миру отправит персонажа в путь
+        if (DebugConsole.IsOpen) return;
+
         Keyboard keyboard = Keyboard.current;
         if (keyboard == null) return;
 

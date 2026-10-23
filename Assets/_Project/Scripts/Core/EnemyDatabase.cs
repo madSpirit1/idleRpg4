@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -51,6 +51,23 @@ public static class EnemyDatabase
         {
             Debug.LogError("EnemyDatabase.json not found in Resources!");
         }
+    }
+
+    // Есть ли враг с таким id в базе (используется командами консоли)
+    public static bool Contains(string enemyID)
+    {
+        Initialize();
+        return !string.IsNullOrEmpty(enemyID) && _database.ContainsKey(enemyID);
+    }
+
+    // Все id врагов из базы — для подсказки "spawn <id>" в консоли
+    public static string[] GetIds()
+    {
+        Initialize();
+        string[] ids = new string[_database.Count];
+        _database.Keys.CopyTo(ids, 0);
+        Array.Sort(ids);
+        return ids;
     }
 
     public static EnemyStats GetStats(string enemyID)

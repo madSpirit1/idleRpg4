@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 
@@ -18,6 +18,10 @@ public class GridController : MonoBehaviour
     private bool _isMoving = false;
     
     private Vector2Int _currentGridPos = Vector2Int.zero;
+
+    // Текущая клетка игрока (нужна спавнеру и консоли: "spawn рядом с игроком")
+    public Vector2Int GridPosition => _currentGridPos;
+
     private List<GameObject> _activeDots = new List<GameObject>();
     private List<Vector2Int> _remainingPath = new List<Vector2Int>(); // Хвост длинного пути
 
