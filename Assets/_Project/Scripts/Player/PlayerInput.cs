@@ -40,6 +40,9 @@ public class PlayerInput : MonoBehaviour
         // Проверяем нажатие левой кнопки мыши (в новой Input System)
         if (Mouse.current.leftButton.wasPressedThisFrame)
         {
+            // Клик по панели скилов не должен отправлять персонажа в путь
+            if (SkillPanel.IsPointerOverUI()) return;
+
             Vector2 mousePosition = Mouse.current.position.ReadValue();
             Ray ray = _mainCamera.ScreenPointToRay(mousePosition);
 

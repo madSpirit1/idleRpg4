@@ -67,3 +67,12 @@ public struct DamageEvent
     public UnityEngine.GameObject Target; 
     public int Amount; 
 }
+
+// Сигнал о выборе скила в панели (клавишей 1-0 или кликом).
+// Боевая система сможет подписаться и перейти в режим выбора цели.
+public struct SkillSelectedEvent
+{
+    public string SkillId;
+    public int Slot;   // 0..9
+    public int Page;   // 1..10
+}
